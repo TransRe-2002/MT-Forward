@@ -29,8 +29,8 @@ def mt1d_forward(rho, h, t_sample=71):
     
     return pc, ph
 
-rho = [1000, 100, 1e6]       # 各层电阻率
-h = [500, 500]                 # 各层厚度
+rho = [100, 50, 10, 50, 30, 15, 100]       # 各层电阻率
+h = [450, 700, 650, 400, 1850, 3500]                 # 各层厚度
 t_sample = 71                                # 周期样本数
 
 pc, ph = mt1d_forward(rho, h, t_sample)
