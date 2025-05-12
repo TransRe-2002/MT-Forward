@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.linalg import norm
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import bicgstab, LinearOperator, spilu
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -197,25 +198,19 @@ class MT1DForwardFDM_TM:
 
         # 内部差分
         for j in range(1, self.nz - 1):
-            if j == 1 or j == self.nz - 2:
-                K[j, j-1:j+2] = [
-                    1/self.dz**2,
-                    mu * eps * Omega**2 + i * mu * Omega / self.r[j] - 2/self.dz**2,
-                    1/self.dz**2
-                ]
-            else:
-                K[j, j-2:j+3] = [
-                    -1 / (12 * self.dz**2),
-                    4 / (3 * self.dz**2),
-                    mu * eps * Omega**2 + i * mu * Omega / self.r[j] - 5 / (2 * self.dz**2),
-                    4 / (3 * self.dz**2),
-                    -1 / (12 * self.dz**2)
-                ]
+            K[j, j-1:j+2] = [
+                self.r[j] /self.dz**2,
+                mu * eps * Omega**2 * (self.r[j] + self.r[j+1]) / 2 \
+                + i * mu * Omega - (self.r[j] + self.r[j+1])/self.dz**2,
+                self.r[j+1] / self.dz**2
+            ]
 
         # 底部吸收边界
-        K[self.nz - 1, self.nz - 2] = -1 / self.dz
-        K[self.nz - 1, self.nz - 1] = 1 / self.dz \
+        K[-1, -2] = -1 / self.dz
+        K[-1, -1] = 1 / self.dz \
             + np.sqrt(-i * Omega * mu / self.r[-1] - Omega**2 * mu * eps)
+        P[-1] = 0
+        
         
         K = K.tocsc()
         P = P.toarray().flatten()
@@ -242,14 +237,14 @@ class MT1DForwardFDM_TM:
         Hx, info = bicgstab(K, P, M=M, rtol=1e-16, maxiter=50)
         
         if info == 0:
-            residual = np.linalg.norm(K.dot(Hx) - P)
+            residual = norm(K.dot(Hx) - P)
             print(f"收敛成功，最终残差：{residual:.2e}")
         else:
             print(f"未收敛，状态码：{info}")
         # Hx = spsolve(K, P)
         
         Hx_g = Hx[0]
-        Ey_g = (-11*Hx[0] + 18*Hx[1] -9*Hx[2] + 2*Hx[3]) / (6*self.dz) / (1 / self.r[0] - i * Omega * eps)
+        Ey_g = (-11*Hx[0] + 18*Hx[1] -9*Hx[2] + 2*Hx[3]) / (6*self.dz) * self.r[0]
         Z_TM_g = Ey_g / Hx_g
         self.Hx_TM_surface[tt] = Hx_g
         self.Ey_TM_surface[tt] = Ey_g
@@ -277,19 +272,17 @@ class MT1DForwardFDM_TM:
 if __name__ == '__main__':
     import time
     # 示例参数
-    # rho = [100, 50, 10, 50, 30, 15, 100]       # 各层电阻率
-    # h = [450, 700, 650, 400, 1850, 3500]            # 各层厚度
-    # t_sample = 141                                # 周期样本数
-    # dz = 5.0                                           # 网格间距
-
-    rho = [100, 10]       
-    h = [1000] 
-    t_sample = 71
-    dz = 10.0       
+    rho = [100, 50, 10, 50, 30, 15, 100]       # 各层电阻率
+    h = [450, 700, 650, 400, 1850, 3500]            # 各层厚度
+    t_sample = 36                              # 周期样本数
+    dz = 10.0                                           # 网格间距
+      
     # 调用并行 FDM 正演函数
     start_time = time.time()
-    model_1 = MT1DForwardFDM_TM(rho, h, t_sample, dz)
-    model_1.plot_result_surface()
+    # model_1 = MT1DForwardFDM_TE(rho, h, t_sample, dz)
+    # model_1.plot_result_surface()
+    model_2 = MT1DForwardFDM_TM(rho, h, t_sample, dz)
+    model_2.plot_result_surface()
     end_time = time.time()
     print(f"运行时间：{end_time - start_time:.6f} 秒")
     
