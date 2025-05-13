@@ -242,7 +242,7 @@ class MT2DForwardFDM_TE():
         cf_pc = axes[0].contourf(X, Y, self.pc_period_surface, levels=20, cmap='viridis')
         cs_pc = axes[0].contour(X, Y, self.pc_period_surface, levels=20, colors='black', linewidths=0.8)
         axes[0].clabel(cs_pc, inline=True, fontsize=8, fmt="%.2f")
-        cbar_pc = fig.colorbar(cf_pc, ax=axes[0])
+        fig.colorbar(cf_pc, ax=axes[0])
         axes[0].set_xlabel('Position / m')
         axes[0].set_ylabel('Period / s')
         axes[0].set_yscale('log')
@@ -254,7 +254,7 @@ class MT2DForwardFDM_TE():
         cf_ph = axes[1].contourf(X, Y, self.ph_period_surface, levels=20, cmap='viridis')
         cs_ph = axes[1].contour(X, Y, self.ph_period_surface, levels=20, colors='black', linewidths=0.8)
         axes[1].clabel(cs_ph, inline=True, fontsize = 8, fmt="%.2f")
-        cbar_ph = fig.colorbar(cf_ph, ax=axes[1])
+        fig.colorbar(cf_ph, ax=axes[1])
         axes[1].set_xlabel('Position / m')
         axes[1].set_ylabel('Period / s')
         axes[1].set_yscale('log')
@@ -275,7 +275,7 @@ class MT2DForwardFDM_TE():
         cf_tr = axes[0].contourf(X, Y, self.Tipple_real_period_surface, levels=20, cmap='viridis')
         cs_tr = axes[0].contour(X, Y, self.Tipple_real_period_surface, levels=20, colors='black', linewidths=0.8)
         axes[0].clabel(cs_tr, inline=True, fontsize=8, fmt="%.2f")
-        cbar_tr = fig.colorbar(cf_tr, ax=axes[0])
+        fig.colorbar(cf_tr, ax=axes[0])
         axes[0].set_xlabel('Position / m')
         axes[0].set_ylabel('Period / s')
         axes[0].set_yscale('log')
@@ -287,7 +287,7 @@ class MT2DForwardFDM_TE():
         cf_ti = axes[1].contourf(X, Y, self.Tipple_imag_period_surface, levels=20, cmap='viridis')
         cs_ti = axes[1].contour(X, Y, self.Tipple_imag_period_surface, levels=20, colors='black', linewidths=0.8)
         axes[1].clabel(cs_ti, inline=True, fontsize = 8, fmt="%.2f")
-        cbar_ti = fig.colorbar(cf_ti, ax=axes[1])
+        fig.colorbar(cf_ti, ax=axes[1])
         axes[1].set_xlabel('Position / m')
         axes[1].set_ylabel('Period / s')
         axes[1].set_yscale('log')
@@ -299,7 +299,7 @@ class MT2DForwardFDM_TE():
         cf_ta = axes[2].contourf(X, Y, self.Tipple_abs_period_surface, levels=20, cmap='viridis')
         cs_ta = axes[2].contour(X, Y, self.Tipple_abs_period_surface, levels=20, colors='black', linewidths=0.8)
         axes[2].clabel(cs_ta, inline=True, fontsize = 8, fmt="%.2f")
-        cbar_ta = fig.colorbar(cf_ta, ax=axes[2])
+        fig.colorbar(cf_ta, ax=axes[2])
         axes[2].set_xlabel('Position / m')
         axes[2].set_ylabel('Period / s')
         axes[2].set_yscale('log')
@@ -380,52 +380,38 @@ class MT2DForwardFDM_TM():
         # 对于边界内的节点
         for z in range(1, self.nz - 1):
             for y in range(1, self.ny - 1):
-                if y == 1 or y == self.ny-2 or z == 1 or z == self.nz-2:
-                    K[self._pos(y, z), self._pos(y-1, z)] = 1 / self.dy**2
-                    K[self._pos(y, z), self._pos(y+1, z)] = 1 / self.dy**2
-                    K[self._pos(y, z), self._pos(y, z-1)] = 1 / self.dz**2
-                    K[self._pos(y, z), self._pos(y, z+1)] = 1 / self.dz**2
-                    K[self._pos(y, z), self._pos(y, z)] = mu * eps * Omega**2 \
-                        + i * mu * Omega / self._rho(y, z) - 2 / self.dy**2 - 2 / self.dz**2
+                K[self._pos(y, z), self._pos(y-1, z)] = self._rho(y, z) / self.dy**2
+                K[self._pos(y, z), self._pos(y+1, z)] = self._rho(y+1, z) / self.dy**2
+                K[self._pos(y, z), self._pos(y, z-1)] = self._rho(y, z) / self.dz**2
+                K[self._pos(y, z), self._pos(y, z+1)] = self._rho(y, z+1) / self.dz**2
+                K[self._pos(y, z), self._pos(y, z)] = mu * eps * Omega**2 * self._rho(y, z)\
+                    + i * mu * Omega - self._rho(y, z) / self.dy**2 - self._rho(y+1, z) / self.dy**2 \
+                    - self._rho(y, z) / self.dz**2 - self._rho(y, z+1) / self.dz**2
 
-        # 对于更复杂的高阶差分处理（使用 9 点差分）
-        for z in range(2, self.nz - 2):
-            for y in range(2, self.ny - 2):
-                K[self._pos(y, z), self._pos(y-2, z)] = -1 / (12 * self.dy**2)
-                K[self._pos(y, z), self._pos(y+2, z)] = -1 / (12 * self.dy**2)
-                K[self._pos(y, z), self._pos(y, z-2)] = -1 / (12 * self.dz**2)
-                K[self._pos(y, z), self._pos(y, z+2)] = -1 / (12 * self.dz**2)
-                K[self._pos(y, z), self._pos(y-1, z)] = 4 / (3 * self.dy**2)
-                K[self._pos(y, z), self._pos(y+1, z)] = 4 / (3 * self.dy**2)
-                K[self._pos(y, z), self._pos(y, z-1)] = 4 / (3 * self.dz**2)
-                K[self._pos(y, z), self._pos(y, z+1)] = 4 / (3 * self.dz**2)
-                K[self._pos(y, z), self._pos(y, z)] = mu * eps * Omega**2 + i \
-                    * mu * Omega / self._rho(y, z) - 5 / (2 * self.dy**2) - 5 / (2 * self.dz**2)
-                    
         # 激发源设置, 直接归一化
         for y in range(self.ny):
             P[self._pos(y, 0)] = 1
     
-        K = K.tocsr()
+        K = K.tocsc()
         P = P.toarray().flatten()
     
         # 求解
         # 计算地表和半空间场
         try:
-            ilu = spilu(K, fill_factor=30, drop_tol=1e-6)
+            ilu = spilu(K, fill_factor=5000, drop_tol=1e-10)
             M = LinearOperator(K.shape, ilu.solve)
         except Exception as e:
             print(f"ILU 分解失败：{e}")
             exit()
 
         # 使用预处理的 BiCGSTAB 求解
-        Hx, info = bicgstab(K, P, M=M, rtol=1e-12, maxiter=5000)
+        Hx, info = bicgstab(K, P, M=M, rtol=1e-20, maxiter=50000)
         
+        residual = norm(K @ Hx - P)
         if info == 0:
-            residual = norm(K.dot(Hx) - P)
             print(f"收敛成功，最终残差：{residual:.2e}")
         else:
-            print(f"未收敛，状态码：{info}")
+            print(f"未收敛，状态码：{info}, 最终残差：{residual:.2e}")
         # 地表电场（z=0和z=1层）
         Hx_z0 = np.array([Hx[self._pos(y, 0)] for y in range(10, self.ny-10)])
         Hx_z1 = np.array([Hx[self._pos(y, 1)] for y in range(10, self.ny-10)])
@@ -470,7 +456,7 @@ class MT2DForwardFDM_TM():
         cf_pc = axes[0].contourf(X, Y, self.pc_period_surface, levels=20, cmap='viridis')
         cs_pc = axes[0].contour(X, Y, self.pc_period_surface, levels=20, colors='black', linewidths=0.8)
         axes[0].clabel(cs_pc, inline=True, fontsize=8, fmt="%.2f")
-        cbar_pc = fig.colorbar(cf_pc, ax=axes[0])
+        fig.colorbar(cf_pc, ax=axes[0])
         axes[0].set_xlabel('Position / m')
         axes[0].set_ylabel('Period / s')
         axes[0].set_yscale('log')
@@ -482,7 +468,7 @@ class MT2DForwardFDM_TM():
         cf_ph = axes[1].contourf(X, Y, self.ph_period_surface, levels=20, cmap='viridis')
         cs_ph = axes[1].contour(X, Y, self.ph_period_surface, levels=20, colors='black', linewidths=0.8)
         axes[1].clabel(cs_ph, inline=True, fontsize = 8, fmt="%.2f")
-        cbar_ph = fig.colorbar(cf_ph, ax=axes[1])
+        fig.colorbar(cf_ph, ax=axes[1])
         axes[1].set_xlabel('Position / m')
         axes[1].set_ylabel('Period / s')
         axes[1].set_yscale('log')
@@ -500,13 +486,13 @@ if __name__ == '__main__':
 
     model1.print_model()
     # TE 模式
-    forward1_1 = MT2DForwardFDM_TE(model1, 61)
+    forward1_1 = MT2DForwardFDM_TE(model1, 71)
     forward1_1.draw_pc_ph_period()
     forward1_1.draw_tipple_period()
     
     # TM 模式
-    # forward1_2 = MT2DForwardFDM_TM(model1, 71)
-    # forward1_2.draw_pc_ph_period()
+    forward1_2 = MT2DForwardFDM_TM(model1, 71)
+    forward1_2.draw_pc_ph_period()
 
     # model2 = Model(8000, 4000, 100.0, 100.0, 100)
     # model2.add_anomaly((3000, 1000), (5000, 3000), 10)
