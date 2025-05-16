@@ -14,8 +14,8 @@ class Model():
         self.dz = dz
         self.y = y
         self.z = z
-        self.ny = int(y / dy)
-        self.nz = int(z / dz)
+        self.ny = int(y / dy) + 1
+        self.nz = int(z / dz) + 1
         self.rho = np.ones((self.ny, self.nz)) * rho_background
         
         for key, value in anomalies.items():
@@ -42,8 +42,8 @@ class Model():
         self.rho[iy0 : iy1+1, iz0 : iz1+1] = rho_anomaly
         
     def print_model(self):
-        y = np.linspace(int(self.dy/2), int(self.y-self.dy/2), self.ny)
-        z = -np.linspace(int(self.dz/2), int(self.z-self.dz/2), self.nz)
+        y = np.linspace(0, int(self.y), self.ny)
+        z = -np.linspace(0, int(self.z), self.nz)
             
         Y, Z = np.meshgrid(y, z)
             
@@ -72,7 +72,7 @@ class MT2DForwardFDM_TE():
         self.rho = model.rho
         
         # 设置空气层
-        self.nz_air = int(air/self.dz)
+        self.nz_air = min(1, int(air/self.dz))
         
         # 网格上扩展空气层，下扩展一层作为边界
         # 网格左右扩展10层作为边界
@@ -141,52 +141,42 @@ class MT2DForwardFDM_TE():
         # 对于边界内的节点
         for z in range(1, self.nz - 1):
             for y in range(1, self.ny - 1):
-                if y == 1 or y == self.ny-2 or z == 1 or z == self.nz-2:
-                    K[self._pos(y, z), self._pos(y-1, z)] = 1 / self.dy**2
-                    K[self._pos(y, z), self._pos(y+1, z)] = 1 / self.dy**2
-                    K[self._pos(y, z), self._pos(y, z-1)] = 1 / self.dz**2
-                    K[self._pos(y, z), self._pos(y, z+1)] = 1 / self.dz**2
-                    K[self._pos(y, z), self._pos(y, z)] = mu * eps * Omega**2 \
-                        + i * mu * Omega / self._rho(y, z) - 2 / self.dy**2 - 2 / self.dz**2
-
-        # 对于更复杂的高阶差分处理（使用 9 点差分）
-        for z in range(2, self.nz - 2):
-            for y in range(2, self.ny - 2):
-                K[self._pos(y, z), self._pos(y-2, z)] = -1 / (12 * self.dy**2)
-                K[self._pos(y, z), self._pos(y+2, z)] = -1 / (12 * self.dy**2)
-                K[self._pos(y, z), self._pos(y, z-2)] = -1 / (12 * self.dz**2)
-                K[self._pos(y, z), self._pos(y, z+2)] = -1 / (12 * self.dz**2)
-                K[self._pos(y, z), self._pos(y-1, z)] = 4 / (3 * self.dy**2)
-                K[self._pos(y, z), self._pos(y+1, z)] = 4 / (3 * self.dy**2)
-                K[self._pos(y, z), self._pos(y, z-1)] = 4 / (3 * self.dz**2)
-                K[self._pos(y, z), self._pos(y, z+1)] = 4 / (3 * self.dz**2)
-                K[self._pos(y, z), self._pos(y, z)] = mu * eps * Omega**2 + i \
-                    * mu * Omega / self._rho(y, z) - 5 / (2 * self.dy**2) - 5 / (2 * self.dz**2)
-                    
+                K[self._pos(y, z), self._pos(y-1, z)] = 1 / self.dy**2
+                K[self._pos(y, z), self._pos(y+1, z)] = 1 / self.dy**2
+                K[self._pos(y, z), self._pos(y, z-1)] = 1 / self.dz**2
+                K[self._pos(y, z), self._pos(y, z+1)] = 1 / self.dz**2
+                K[self._pos(y, z), self._pos(y, z)] = mu * eps * Omega**2 \
+                    + i * mu * Omega / self._rho(y, z) - 2 / self.dy**2 - 2 / self.dz**2
+            
         # 激发源设置, 直接归一化
         for y in range(self.ny):
             P[self._pos(y, 0)] = 1
-    
-        K = K.tocsc()
-        P = P.toarray()
+        
+        # if tt == 1:
+        #     plt.figure(figsize=(10, 10))
+        #     plt.spy(K, markersize=2, color='blue')
+        #     plt.title("Sparse Matrix Non-zero Elements Distribution")
+        #     plt.xlabel("Column Index")
+        #     plt.ylabel("Row Index")
+        #     plt.show()
+        
+        K = (K*1e4).tocsc()
+        P = (P*1e4).toarray()
 
-        # 求解
-        # 计算地表和半空间场
         try:
-            ilu = spilu(K, fill_factor=100, drop_tol=1e-8)
+            ilu = spilu(K, fill_factor=5000, drop_tol=1e-10)
             M = LinearOperator(K.shape, ilu.solve)
         except Exception as e:
             print(f"ILU 分解失败：{e}")
             exit()
 
         # 使用预处理的 BiCGSTAB 求解
-        Ex, info = bicgstab(K, P, M=M, rtol=1e-16, maxiter=1000)
-        
+        Ex, info = bicgstab(K, P, M=M, rtol=1e-20, maxiter=50)        
+        residual = norm(K @ Ex - P)
         if info == 0:
-            residual = norm(K.dot(Ex) - P)
             print(f"收敛成功，最终残差：{residual:.2e}")
         else:
-            print(f"未收敛，状态码：{info}")
+            print(f"未收敛，状态码：{info}, 最终残差：{residual:.2e}")
         
         # 地表电场（z=0和z=1层）
         Ex_z0 = np.array([Ex[self._pos(y, max(self.nz_air, 1))] for y in range(10, self.ny-10)])
@@ -218,21 +208,21 @@ class MT2DForwardFDM_TE():
         self.Tipple_abs_period_surface[tt, :] = Tipple_abs_surface
         
         # 垃圾回收
-        del K, P, ilu, Ex
+        del K, P, Ex
         gc.collect()
         
     def _run_forward(self):
         """ 并行计算所有周期的正演 """
-        with ThreadPoolExecutor(max_workers=cpu_count()/4) as executor:
+        with ThreadPoolExecutor(max_workers=cpu_count()/8) as executor:
             futures = [executor.submit(self._solve_single_period, tt) for tt in range(self.t_sample)]
             for f in as_completed(futures):
                 try:
                     f.result()
                 except Exception as e:
                     print(f"某个周期计算失败: {str(e)}，请检查")
-             
+        
     def draw_pc_ph_period(self):
-        x = np.linspace(int(self.dy/2), int(self.y-self.dy/2), self.ny_model)
+        x = np.linspace(0, int(self.y), self.ny_model)
         y = self.T
         
         X, Y = np.meshgrid(x, y)
@@ -265,7 +255,7 @@ class MT2DForwardFDM_TE():
         plt.show()
 
     def draw_tipple_period(self):
-        x = np.linspace(int(self.dy/2), int(self.y-self.dy/2), self.ny_model)
+        x = np.linspace(0, int(self.y), self.ny_model)
         y = self.T
         
         X, Y = np.meshgrid(x, y)
@@ -395,6 +385,13 @@ class MT2DForwardFDM_TM():
         K = K.tocsc()
         P = P.toarray().flatten()
     
+        # if tt == 1:
+        #     plt.figure(figsize=(10, 10))
+        #     plt.spy(K, markersize=2, color='blue')
+        #     plt.title("Sparse Matrix Non-zero Elements Distribution")
+        #     plt.xlabel("Column Index")
+        #     plt.ylabel("Row Index")
+        #     plt.show()
         # 求解
         # 计算地表和半空间场
         try:
@@ -412,7 +409,7 @@ class MT2DForwardFDM_TM():
             print(f"收敛成功，最终残差：{residual:.2e}")
         else:
             print(f"未收敛，状态码：{info}, 最终残差：{residual:.2e}")
-        # 地表电场（z=0和z=1层）
+        # 地表磁场（z=0和z=1层）
         Hx_z0 = np.array([Hx[self._pos(y, 0)] for y in range(10, self.ny-10)])
         Hx_z1 = np.array([Hx[self._pos(y, 1)] for y in range(10, self.ny-10)])
         Hx_z2 = np.array([Hx[self._pos(y, 2)] for y in range(10, self.ny-10)])
@@ -437,7 +434,7 @@ class MT2DForwardFDM_TM():
 
     def _run_forward(self):
         """ 并行计算所有周期的正演 """
-        with ThreadPoolExecutor(max_workers=cpu_count()/2) as executor:
+        with ThreadPoolExecutor(max_workers=cpu_count()/8) as executor:
             futures = [executor.submit(self._solve_single_period, tt) for tt in range(self.t_sample)]
             for f in as_completed(futures):
                 try:
@@ -446,7 +443,7 @@ class MT2DForwardFDM_TM():
                     print(f"某个周期计算失败: {str(e)}，请检查")
              
     def draw_pc_ph_period(self):
-        x = np.linspace(int(self.dy/2), int(self.y-self.dy/2), self.ny_model)
+        x = np.linspace(0, int(self.y), self.ny_model)
         y = self.T
         
         X, Y = np.meshgrid(x, y)
@@ -479,19 +476,19 @@ class MT2DForwardFDM_TM():
         plt.show()
 
 if __name__ == '__main__':
-    model1 = Model(12000, 6000, 50.0, 50.0, 100)
+    model1 = Model(12000, 6000, 100.0, 100.0, 100)
     
     model1.add_anomaly((2000, 1000), (4000, 3000), 10)
     model1.add_anomaly((8000, 1000), (10000, 3000), 1000)
 
     model1.print_model()
     # TE 模式
-    forward1_1 = MT2DForwardFDM_TE(model1, 71)
+    forward1_1 = MT2DForwardFDM_TE(model1, 61)
     forward1_1.draw_pc_ph_period()
     forward1_1.draw_tipple_period()
     
     # TM 模式
-    forward1_2 = MT2DForwardFDM_TM(model1, 71)
+    forward1_2 = MT2DForwardFDM_TM(model1, 61)
     forward1_2.draw_pc_ph_period()
 
     # model2 = Model(8000, 4000, 100.0, 100.0, 100)

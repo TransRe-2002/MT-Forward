@@ -135,7 +135,7 @@ class MT1DForwardFDM_TE:
         fig, axes = plt.subplots(2, 1, figsize=(16, 9))
         x_impedance = self.T
         axes[0].set_title("Apparent Resistivity")
-        axes[0].semilogx(x_impedance, self.pc, 'b-')
+        axes[0].loglog(x_impedance, self.pc, 'b-')
         axes[1].set_title("Phase")
         axes[1].semilogx(x_impedance, self.ph, 'r-')
         plt.show()
@@ -264,7 +264,7 @@ class MT1DForwardFDM_TM:
         fig, axes = plt.subplots(2, 1, figsize=(16, 9))
         x_impedance = self.T
         axes[0].set_title("Apparent Resistivity")
-        axes[0].semilogx(x_impedance, self.pc, 'b-')
+        axes[0].loglog(x_impedance, self.pc, 'b-')
         axes[1].set_title("Phase")
         axes[1].semilogx(x_impedance, self.ph, 'r-')
         plt.show()
@@ -279,8 +279,8 @@ if __name__ == '__main__':
       
     # 调用并行 FDM 正演函数
     start_time = time.time()
-    # model_1 = MT1DForwardFDM_TE(rho, h, t_sample, dz)
-    # model_1.plot_result_surface()
+    model_1 = MT1DForwardFDM_TE(rho, h, t_sample, dz)
+    model_1.plot_result_surface()
     model_2 = MT1DForwardFDM_TM(rho, h, t_sample, dz)
     model_2.plot_result_surface()
     end_time = time.time()
