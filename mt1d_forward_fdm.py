@@ -270,20 +270,20 @@ class MT1DForwardFDM_TM:
         plt.show()
 
 if __name__ == '__main__':
-    import time
     # 示例参数
     rho = [100, 50, 10, 50, 30, 15, 100]       # 各层电阻率
-    h = [450, 700, 650, 400, 1850, 3500]            # 各层厚度
-    t_sample = 36                              # 周期样本数
+    h = [450, 700, 650, 400, 1850, 3500]                 # 各层厚度
+    t_sample = 71                              # 周期样本数
     dz = 10.0                                           # 网格间距
       
     # 调用并行 FDM 正演函数
-    start_time = time.time()
+    # import time
+    # start_time = time.time()
     model_1 = MT1DForwardFDM_TE(rho, h, t_sample, dz)
     model_1.plot_result_surface()
     model_2 = MT1DForwardFDM_TM(rho, h, t_sample, dz)
     model_2.plot_result_surface()
-    end_time = time.time()
-    print(f"运行时间：{end_time - start_time:.6f} 秒")
+    # end_time = time.time()
+    # print(f"运行时间：{end_time - start_time:.6f} 秒")
     
     

@@ -34,22 +34,22 @@ class Model():
         iz0 = int(z0 / self.dz)
         iz1 = int(z1 / self.dz)
 
-        iy0 = max(0, min(self.ny - 1, iy0))
-        iy1 = max(0, min(self.ny - 1, iy1))
-        iz0 = max(0, min(self.nz - 1, iz0))
-        iz1 = max(0, min(self.nz - 1, iz1))
+        iy0 = max(0, min(self.ny, iy0))
+        iy1 = max(0, min(self.ny, iy1))
+        iz0 = max(0, min(self.nz, iz0))
+        iz1 = max(0, min(self.nz, iz1))
 
         self.rho[iy0 : iy1+1, iz0 : iz1+1] = rho_anomaly
         
     def print_model(self):
-        y = np.linspace(0, int(self.y), self.ny)
-        z = -np.linspace(0, int(self.z), self.nz)
-            
+        y = np.linspace(self.dy/2, int(self.y-self.dy/2), self.ny-1)
+        z = -np.linspace(self.dz/2, int(self.z-self.dz/2), self.nz-1)
+        data = self.rho[:self.ny-1, :self.nz-1].T
         Y, Z = np.meshgrid(y, z)
             
         # Plotting
         fig, ax = plt.subplots(figsize=(16, 10))
-        cp = ax.pcolormesh(Y, Z, self.rho.T, cmap='viridis', shading='auto')
+        cp = ax.pcolormesh(Y, Z, data, cmap='viridis', shading='auto')
         fig.colorbar(cp, label='Density (rho)')
         ax.set_title('Density Model')
         ax.set_xlabel('Y (meters)')
@@ -344,7 +344,7 @@ class MT2DForwardFDM_TM():
         eps = 8.8419e-12
         
         P = lil_matrix((self.ny * self.nz, 1), dtype=np.complex128)
-        K = lil_matrix((self.ny * self.nz, self.ny * self.nz), 
+        K = lil_matrix((self.ny * self.nz, self.ny * self.nz),
             dtype=np.complex128)
         
         # 创建有限差分系数稀疏矩阵
